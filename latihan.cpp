@@ -4,11 +4,12 @@
 
 struct TrackedObject {
     std::string name;
-    int hMin, hMax;
+    int hMin, hMax;       
     int lMin, lMax;
     int sMin, sMax;
     int minArea;
     double wRealMm;
+    bool wrapHue;          // true only for red (hue wraps around 0/179)
     cv::Scalar color;
 };
 
@@ -19,10 +20,10 @@ int main() {
     if (!cap.isOpened()) return -1;
 
     std::vector<TrackedObject> objects = {
-        //  name              hMin hMax  lMin lMax  sMin sMax  minArea  W_real  warna (BGR)
-        { "Botol Merah",        0,  12,   30, 255,   90, 255,    1000,    70.0,  cv::Scalar(0,   0, 255) },
-        { "Helm Neon",         25,  45,   40, 255,  120, 255,    3000,   250.0,  cv::Scalar(0, 255, 255) },
-        { "Pouch Tosca",       85, 105,   35, 230,   80, 255,    1500,   150.0,  cv::Scalar(255,200,  0) },
+        //  name              hMin hMax  lMin lMax  sMin sMax  minArea  W_real  wrap   color (BGR)
+        { "Red Bottle",        12, 168,   25, 255,   70, 255,    1000,    80.0, true,  cv::Scalar(0,   0, 255) },
+        { "Yellow Helmet",     28,  48,   80, 255,   60, 255,    3000,   190.0, false, cv::Scalar(0, 255, 255) },
+        { "Pouch Teal",        85, 105,   35, 230,   80, 255,    1500,    60.0, false, cv::Scalar(255,200,  0) },
     };
 
     int active = 0;
@@ -31,7 +32,7 @@ int main() {
 
     cv::namedWindow(PANEL, cv::WINDOW_NORMAL);
     cv::resizeWindow(PANEL, 520, 420);
-    cv::createTrackbar("Objek (0/1/2)", PANEL, &active, (int)objects.size() - 1);
+    cv::createTrackbar("Object (0/1/2)", PANEL, &active, (int)objects.size() - 1);
     cv::createTrackbar("H Min",     PANEL, &hMin, 179);
     cv::createTrackbar("H Max",     PANEL, &hMax, 179);
     cv::createTrackbar("L Min",     PANEL, &lMin, 255);
@@ -41,9 +42,9 @@ int main() {
     cv::createTrackbar("Area /100", PANEL, &areaBy100, 200);
     cv::createTrackbar("FX",        PANEL, &fxValue, 2000);
 
-    int lastActive = -1;   // -1 memaksa pemuatan pertama kali
+    int lastActive = -1;  
 
-    cv::Mat frame, hls, mask;
+    cv::Mat frame, hls, mask, maskLow, maskHigh;
     std::vector<std::vector<cv::Point>> contours;
     std::vector<cv::Mat> maskViews;
 
@@ -80,8 +81,17 @@ int main() {
         for (size_t k = 0; k < objects.size(); k++) {
             const TrackedObject& obj = objects[k];
 
-            cv::inRange(hls, cv::Scalar(obj.hMin, obj.lMin, obj.sMin),
-                             cv::Scalar(obj.hMax, obj.lMax, obj.sMax), mask);
+            if (obj.wrapHue) {
+                // because my red bottle has both ends of the hue wheel, so one range cannot express it
+                cv::inRange(hls, cv::Scalar(0, obj.lMin, obj.sMin),
+                                 cv::Scalar(obj.hMin, obj.lMax, obj.sMax), maskLow);
+                cv::inRange(hls, cv::Scalar(obj.hMax, obj.lMin, obj.sMin),
+                                 cv::Scalar(179, obj.lMax, obj.sMax), maskHigh);
+                cv::bitwise_or(maskLow, maskHigh, mask);
+            } else {
+                cv::inRange(hls, cv::Scalar(obj.hMin, obj.lMin, obj.sMin),
+                                 cv::Scalar(obj.hMax, obj.lMax, obj.sMax), mask);
+            }
 
             cv::erode(mask,  mask, cv::Mat(), cv::Point(-1, -1), 2);
             cv::dilate(mask, mask, cv::Mat(), cv::Point(-1, -1), 4);
@@ -125,14 +135,17 @@ int main() {
             const double x = ((centroid.x - cx) * z) / fx;
             const double y = ((centroid.y - cy) * z) / fx;
 
-            cv::putText(frame, obj.name, cv::Point(box.x, box.y - 32),
+            cv::putText(frame, obj.name, cv::Point(box.x, box.y - 36),
                         cv::FONT_HERSHEY_SIMPLEX, 0.5, obj.color, 2);
             cv::putText(frame, cv::format("Z = %.1f cm", z / 10.0),
-                        cv::Point(box.x, box.y - 18),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.5, obj.color, 1);
-            cv::putText(frame, cv::format("(%.0f, %.0f, %.0f)", x/10.0, y/10.0, z/10.0),
+                        cv::Point(box.x, box.y - 20),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.5, obj.color, 2);
+            cv::putText(frame, cv::format("(%.0f, %.0f, %.0f) cm", x/10.0, y/10.0, z/10.0),
                         cv::Point(box.x, box.y - 4),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.4, obj.color, 1);
+                        cv::FONT_HERSHEY_SIMPLEX, 0.45, obj.color, 2);
+            cv::putText(frame, cv::format("w = %d px  |  W_real = %.0f mm", box.width, obj.wRealMm),
+                        cv::Point(box.x, box.y + box.height + 16),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.45, obj.color, 2);
         }
 
         cv::putText(frame, "Press [Q] to quit", cv::Point(10, frame.rows - 12),
@@ -143,7 +156,7 @@ int main() {
         if (!maskViews.empty()) {
             cv::Mat strip;
             cv::hconcat(maskViews, strip);
-            cv::imshow("Mask tiap objek", strip);
+            cv::imshow("Object Masks", strip);
         }
 
         const int key = cv::waitKey(1) & 0xFF;
