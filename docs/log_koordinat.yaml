@@ -1,0 +1,25 @@
+%YAML:1.0
+---
+unit: millimetre
+entries:
+   -
+      capture: 1
+      object: Red Square
+      X_mm: 4.8913522144996328e+01
+      Y_mm: 6.9493680092225489e+01
+      Z_mm: 2.9404628732911488e+02
+      width_px: 98
+   -
+      capture: 1
+      object: Teal Inhaler
+      X_mm: -6.6358646919396222e+01
+      Y_mm: 3.2354281015546867e+01
+      Z_mm: 2.0524598403314286e+02
+      width_px: 78
+   -
+      capture: 1
+      object: Blue Speaker
+      X_mm: 1.0100052214485778e+01
+      Y_mm: -5.1760955164983102e+01
+      Z_mm: 3.9159161845747838e+02
+      width_px: 139

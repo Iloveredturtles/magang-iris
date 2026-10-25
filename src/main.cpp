@@ -1,5 +1,6 @@
 #include "tracker.hpp"
 
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <vector>
@@ -20,6 +21,9 @@ const std::string PANEL       = "control_HSL";
 const std::string MAIN_WINDOW = "Normal";
 const std::string MASK_WINDOW = "Object Masks";
 
+const std::string DOCS_DIR = "docs";
+const std::string LOG_PATH = "docs/log_koordinat.yaml";
+
 constexpr int FRAME_WIDTH  = 640;
 constexpr int FRAME_HEIGHT = 480;
 
@@ -36,6 +40,54 @@ constexpr int LABEL_WIDTH_DY  = 16;
 
 double toCm(double mm) { return mm / 10.0; }
 
+// one row of the 3D log written on every capture
+struct LogEntry {
+    int         capture;
+    std::string object;
+    double      xMm, yMm, zMm;
+    int         widthPx;
+};
+
+// FileStorage cannot append, so the whole log is rewritten each time
+bool writeLog(const std::vector<LogEntry>& entries) {
+    cv::FileStorage fs(LOG_PATH, cv::FileStorage::WRITE);
+    if (!fs.isOpened()) {
+        std::cerr << "cannot write " << LOG_PATH << "\n";
+        return false;
+    }
+    fs << "unit" << "millimetre";
+    fs << "entries" << "[";
+    for (const LogEntry& e : entries) {
+        fs << "{";
+        fs << "capture"  << e.capture;
+        fs << "object"   << e.object;
+        fs << "X_mm"     << e.xMm;
+        fs << "Y_mm"     << e.yMm;
+        fs << "Z_mm"     << e.zMm;
+        fs << "width_px" << e.widthPx;
+        fs << "}";
+    }
+    fs << "]";
+    fs.release();
+    return true;
+}
+
+// start numbering after the highest capture_N.png already in docs/
+int lastCaptureNumber() {
+    int highest = 0;
+    if (!std::filesystem::exists(DOCS_DIR)) {
+        return 0;
+    }
+    for (const auto& entry : std::filesystem::directory_iterator(DOCS_DIR)) {
+        const std::string name = entry.path().filename().string();
+        int n = 0;
+        if (std::sscanf(name.c_str(), "capture_%d.png", &n) == 1 && n > highest) {
+            highest = n;
+        }
+    }
+    return highest;
+}
+
 
 ObjectList createObjects() {
     ObjectList objects;
@@ -43,17 +95,13 @@ ObjectList createObjects() {
     //width is just a placehorder, replace it with ur own
     //hMin hMax  lMin lMax  sMin sMax  area  W_real  color (BGR)
     objects.push_back(std::make_unique<GradientColorObject>(
-        "Red Object",     12, 168,   25, 255,   70, 255, 1000,  80.0, cv::Scalar(  0,   0, 255)));
+        "Red Square",     12, 168,   25, 255,   70, 255,  800,  45.0, cv::Scalar(  0,   0, 255)));
 
     objects.push_back(std::make_unique<SolidColorObject>(
-        "Yellow Object",  20,  35,   40, 230,   80, 255, 1000,  80.0, cv::Scalar(  0, 255, 255)));
+        "Teal Inhaler",   70,  98,   35, 230,   60, 255,  500,  25.0, cv::Scalar(200, 200,   0)));
 
     objects.push_back(std::make_unique<SolidColorObject>(
-        "Green Object",   40,  85,   35, 220,   70, 255, 1000,  80.0, cv::Scalar(  0, 255,   0)));
-
-    objects.push_back(std::make_unique<SolidColorObject>(
-        "Blue Object",    95, 130,   35, 220,   80, 255, 1000,  80.0, cv::Scalar(255,   0,   0)));
-
+        "Blue Speaker",  102, 135,   35, 220,   70, 255, 1500,  85.0, cv::Scalar(255,  80,   0)));
     return objects;
 }
 
@@ -67,7 +115,7 @@ struct ControlPanel {
     int areaBy100  = 0;
     int erodeIter  = 2;
     int dilateIter = 4;
-    int warnZcm    = 30;              // warn when an object is closer than this
+    int warnZcm    = 10;              // warn when an object is closer than this
     int lastActive = -1;             
 
     void create(int objectCount) {
@@ -176,6 +224,10 @@ bool quitRequested(int key) {
     return key == 'q' || key == 'Q' || key == 27;
 }
 
+bool captureRequested(int key) {
+    return key == ' ';
+}
+
 }  // namespace
 
 int main() {
@@ -202,8 +254,13 @@ int main() {
     ControlPanel panel;
     panel.create(static_cast<int>(objects.size()));
 
+    std::filesystem::create_directories(DOCS_DIR);
+
     // fps timer
     int64 lastTick = cv::getTickCount();
+
+    std::vector<LogEntry> logEntries;
+    int captureCount = lastCaptureNumber();
 
     cv::Mat frame;
     while (true) {
@@ -248,7 +305,8 @@ int main() {
         cv::putText(display, cv::format("FPS: %.1f", fps), cv::Point(10, 22),
                     FONT, 0.6, cv::Scalar(0, 255, 255), 2);
 
-        cv::putText(display, "Press [Q] to quit",
+
+        cv::putText(display, "[SPACE] capture   [Q] quit",
                     cv::Point(10, display.rows - 46),
                     FONT, 0.5, cv::Scalar(255, 255, 255), 1);
 
@@ -265,8 +323,35 @@ int main() {
         cv::imshow(MAIN_WINDOW, display);
         cv::imshow(MASK_WINDOW, buildMaskStrip(objects, panel.active));
 
-        if (quitRequested(cv::waitKey(1) & 0xFF)) {
+        const int key = cv::waitKey(1) & 0xFF;
+        if (quitRequested(key)) {
             break;
+        }
+
+        // save the frame as docs/capture_N.png and log every detected object
+        if (captureRequested(key)) {
+            const int number = captureCount + 1;
+            const std::string path = cv::format("%s/capture_%d.png",
+                                                DOCS_DIR.c_str(), number);
+            if (!cv::imwrite(path, display)) {
+                std::cerr << "cannot write " << path << "\n";
+                continue;
+            }
+            captureCount = number;
+
+            int added = 0;
+            for (const auto& object : objects) {
+                const Detection& d = object->detection();
+                if (!d.found) {
+                    continue;
+                }
+                logEntries.push_back(LogEntry{number, object->name,
+                                              d.posMm.x, d.posMm.y, d.posMm.z,
+                                              d.box.width});
+                ++added;
+            }
+            writeLog(logEntries);
+            std::cout << "saved " << path << " (" << added << " objects)\n";
         }
     }
 
