@@ -1,6 +1,6 @@
-// [SPACE] take a snapshot when the board is detected
-// [C]     run the calibration and save the file
-// [R]     throw away all snapshots and start again
+// [SPACE] take board snapshot
+// [C]     run the calibration 
+// [R]     start over
 // [Q]     quit
 
 #include <opencv2/opencv.hpp>
@@ -62,13 +62,14 @@ int main() {
             cv::drawChessboardCorners(frame, BOARD_SIZE, corners, found);
         }
 
-        cv::putText(frame, cv::format("snapshots: %d / %d",
-                                      (int)imagePoints.size(), MIN_SNAPSHOTS),
-                    cv::Point(10, 25), cv::FONT_HERSHEY_SIMPLEX, 0.6,
-                    cv::Scalar(255, 255, 255), 2);
-        cv::putText(frame, found ? "BOARD FOUND - press [SPACE]" : "no board",
-                    cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 0.6,
-                    found ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 165, 255), 2);
+        // snapshot counter, top right
+        const std::string counter = cv::format("image : %d", (int)imagePoints.size());
+        int baseline = 0;
+        const cv::Size csize = cv::getTextSize(counter, cv::FONT_HERSHEY_SIMPLEX,
+                                               0.8, 2, &baseline);
+        cv::putText(frame, counter,
+                    cv::Point(frame.cols - csize.width - 12, 32),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(255, 255, 255), 2);
         cv::putText(frame, "[SPACE] shot   [C] calibrate   [R] reset   [Q] quit",
                     cv::Point(10, frame.rows - 12), cv::FONT_HERSHEY_SIMPLEX, 0.45,
                     cv::Scalar(200, 200, 200), 1);

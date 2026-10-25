@@ -9,8 +9,9 @@ namespace {
 using tracker::CameraIntrinsics;
 using tracker::Detection;
 using tracker::MorphSettings;
+using tracker::SolidColorObject;
 using tracker::TrackedObject;
-using tracker::WrappedHueObject;
+using tracker::GradientColorObject;
 
 using ObjectList = std::vector<std::unique_ptr<TrackedObject>>;
 
@@ -38,11 +39,11 @@ double toCm(double mm) { return mm / 10.0; }
 
 ObjectList createObjects() {
     ObjectList objects;
-    objects.push_back(std::make_unique<WrappedHueObject>(
+    objects.push_back(std::make_unique<GradientColorObject>(
         "Red Bottle",    12, 168,  25, 255,  70, 255, 1000,  80.0, cv::Scalar(  0,   0, 255)));
-    objects.push_back(std::make_unique<TrackedObject>(
+    objects.push_back(std::make_unique<SolidColorObject>(
         "Yellow Helmet", 28,  48,  80, 255,  60, 255, 3000, 190.0, cv::Scalar(  0, 255, 255)));
-    objects.push_back(std::make_unique<TrackedObject>(
+    objects.push_back(std::make_unique<SolidColorObject>(
         "Pouch Teal",    85, 105,  35, 230,  80, 255, 1500,  60.0, cv::Scalar(255, 200,   0)));
     return objects;
 }
@@ -58,7 +59,7 @@ struct ControlPanel {
     int erodeIter  = 2;
     int dilateIter = 4;
     int warnZcm    = 30;              // warn when an object is closer than this
-    int lastActive = -1;              // -1 forces the first load
+    int lastActive = -1;              
 
     void create(int objectCount) {
         cv::namedWindow(PANEL, cv::WINDOW_NORMAL);

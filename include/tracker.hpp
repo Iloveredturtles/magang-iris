@@ -11,7 +11,7 @@ namespace tracker {
 constexpr int HUE_MAX = 179;
 
 
-// object is detected
+// object detection
 struct Detection {
     bool        found    = false;
     cv::Rect    box;
@@ -98,12 +98,9 @@ public:
 
     virtual ~TrackedObject() = default;
 
-    virtual cv::Mat buildMask(const cv::Mat& hls) const {
-        cv::Mat mask;
-        cv::inRange(hls, cv::Scalar(hMin, lMin, sMin),
-                         cv::Scalar(hMax, lMax, sMax), mask);
-        return mask;
-    }
+
+    //TrackedObject can no longer be created directly.
+    virtual cv::Mat buildMask(const cv::Mat& hls) const = 0;
 
     void detect(const cv::Mat& hls, const CameraIntrinsics& cam,
                 const MorphSettings& morph);
@@ -124,7 +121,7 @@ private:
 
 // Erode removes specks, dilate fills holes, the second erode restores the size.
 inline void TrackedObject::cleanMask(const MorphSettings& morph) {
-    const cv::Mat kernel;              // empty = the default 3x3
+    const cv::Mat kernel;              
     const cv::Point anchor(-1, -1);    // centred on itself
     cv::erode (mask_, mask_, kernel, anchor, morph.erodeIter);
     cv::dilate(mask_, mask_, kernel, anchor, morph.dilateIter);
@@ -188,10 +185,23 @@ inline void TrackedObject::detect(const cv::Mat& hls, const CameraIntrinsics& ca
 }
 
 
-// SUBCLASS for my red bottle hue sits at two range
+// SUBCLASS for a solid colour, one hue range
+class SolidColorObject : public TrackedObject {
+public:
+    using TrackedObject::TrackedObject;
+
+    cv::Mat buildMask(const cv::Mat& hls) const override {
+        cv::Mat mask;
+        cv::inRange(hls, cv::Scalar(hMin, lMin, sMin),
+                         cv::Scalar(hMax, lMax, sMax), mask);
+        return mask;
+    }
+};
+
+// SUBCLASS for a colour that spans two hue ranges
 // For this class hMin is the top of the low band and hMax the bottom of the high band
 
-class WrappedHueObject : public TrackedObject {
+class GradientColorObject : public TrackedObject {
 public:
     using TrackedObject::TrackedObject;
 
@@ -208,4 +218,4 @@ public:
 
 }  // namespace tracker
 
-#endif  
+#endif
