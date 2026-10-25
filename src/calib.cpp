@@ -11,7 +11,7 @@
 const cv::Size BOARD_SIZE(8, 6);
 
 
-const float SQUARE_SIZE_MM = 10.0f;
+const float SQUARE_SIZE_MM = 23.0f;
 
 const int MIN_SNAPSHOTS = 15;
 const std::string OUT_PATH = "yaml/kalibrasi.yaml";
