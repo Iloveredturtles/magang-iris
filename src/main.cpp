@@ -23,8 +23,8 @@ const std::string MASK_WINDOW = "Object Masks";
 constexpr int FRAME_WIDTH  = 640;
 constexpr int FRAME_HEIGHT = 480;
 
-constexpr int MASK_TILE_WIDTH  = 320;
-constexpr int MASK_TILE_HEIGHT = 240;
+constexpr int MASK_TILE_WIDTH  = 240;
+constexpr int MASK_TILE_HEIGHT = 180;
 
 constexpr int FONT = cv::FONT_HERSHEY_SIMPLEX;
 
@@ -39,12 +39,21 @@ double toCm(double mm) { return mm / 10.0; }
 
 ObjectList createObjects() {
     ObjectList objects;
+
+    //width is just a placehorder, replace it with ur own
+    //hMin hMax  lMin lMax  sMin sMax  area  W_real  color (BGR)
     objects.push_back(std::make_unique<GradientColorObject>(
-        "Red Bottle",    12, 168,  25, 255,  70, 255, 1000,  80.0, cv::Scalar(  0,   0, 255)));
+        "Red Object",     12, 168,   25, 255,   70, 255, 1000,  80.0, cv::Scalar(  0,   0, 255)));
+
     objects.push_back(std::make_unique<SolidColorObject>(
-        "Yellow Helmet", 28,  48,  80, 255,  60, 255, 3000, 190.0, cv::Scalar(  0, 255, 255)));
+        "Yellow Object",  20,  35,   40, 230,   80, 255, 1000,  80.0, cv::Scalar(  0, 255, 255)));
+
     objects.push_back(std::make_unique<SolidColorObject>(
-        "Pouch Teal",    85, 105,  35, 230,  80, 255, 1500,  60.0, cv::Scalar(255, 200,   0)));
+        "Green Object",   40,  85,   35, 220,   70, 255, 1000,  80.0, cv::Scalar(  0, 255,   0)));
+
+    objects.push_back(std::make_unique<SolidColorObject>(
+        "Blue Object",    95, 130,   35, 220,   80, 255, 1000,  80.0, cv::Scalar(255,   0,   0)));
+
     return objects;
 }
 
@@ -59,7 +68,7 @@ struct ControlPanel {
     int erodeIter  = 2;
     int dilateIter = 4;
     int warnZcm    = 30;              // warn when an object is closer than this
-    int lastActive = -1;              
+    int lastActive = -1;             
 
     void create(int objectCount) {
         cv::namedWindow(PANEL, cv::WINDOW_NORMAL);
